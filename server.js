@@ -5,10 +5,14 @@ const path = require('path');
 const { analyzeSMC } = require('./smc');
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 app.use(cors());
-app.use(express.static('public'));
+app.use(express.static(path.join(__dirname, 'public')));
+
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 
 const VALID_INTERVALS = ['5m', '15m', '1h', '4h', '1d'];
 
