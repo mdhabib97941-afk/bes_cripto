@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SMC Crypto Dashboard</title>
+    <style>
+        body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #131722; color: #d1d4dc; }
+        .header { padding: 15px 20px; background-color: #1e222d; display: flex; align-items: center; gap: 15px; border-bottom: 1px solid #2b313f; flex-wrap: wrap; }
+        .header h1 { margin: 0; font-size: 1.2rem; color: #fff; margin-right: auto; }
+        select, button { background-color: #2b313f; color: #d1d4dc; border: 1px solid #363c4e; padding: 8px 12px; border-radius: 4px; outline: none; cursor: pointer; }
+        select:hover, button:hover { background-color: #363c4e; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        #chart-wrapper { width: 100vw; height: calc(100vh - 65px); position: relative; }
+        #chart-container { width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
+        .legend { position: absolute; top: 10px; left: 20px; z-index: 10; font-size: 14px; background: rgba(30, 34, 45, 0.8); padding: 10px; border-radius: 5px; pointer-events: none;}
+        .legend-item { display: flex; align-items: center; gap: 8px; margin-bottom: 5px;}
+        .icon-fvg-bull { color: #009688; font-weight: bold; }
+        .icon-fvg-bear { color: #ff5252; font-weight: bold; }
+        .icon-ob-bull { color: #2962ff; font-weight: bold; }
+        .icon-ob-bear { color: #ff9800; font-weight: bold; }
+        #overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(19, 23, 34, 0.8); z-index: 20; display: flex; justify-content: center; align-items: center; flex-direction: column; display: none; }
+        .spinner { border: 4px solid rgba(255, 255, 255, 0.1); border-left-color: #2962ff; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        #error-msg { color: #ff5252; margin-top: 15px; font-weight: bold; display: none; text-align: center; }
+    </style>
+    <script src="https://unpkg.com/lightweight-charts@4.1.1/dist/lightweight-charts.standalone.production.js"></script>
+</head>
+<body>
+    <div class="header" id="header">
+        <h1>SMC Market Dashboard</h1>
+        <select id="symbol">
+            <option value="BTCUSDT">BTC/USDT</option>
+            <option value="ETHUSDT">ETH/USDT</option>
+            <option value="SOLUSDT">SOL/USDT</option>
+            <option value="EURUSDT">EUR/USDT</option>
+        </select>
+        <select id="interval">
+            <option value="5m">5m</option>
+            <option value="15m" selected>15m</option>
+            <option value="1h">1H</option>
+            <option value="4h">4H</option>
+            <option value="1d">1D</option>
+        </select>
+        <button id="refreshBtn">Refresh Data</button>
+    </div>
+    
+    <div id="chart-wrapper">
+        <div id="overlay">
+            <div class="spinner" id="spinner"></div>
+            <div id="error-msg"></div>
+        </div>
+        <div id="chart-container">
+            <div class="legend">
+                <div class="legend-item"><span class="icon-fvg-bull">⬆</span> Bullish FVG</div>
+                <div class="legend-item"><span class="icon-fvg-bear">⬇</span> Bearish FVG</div>
+                <div class="legend-item"><span class="icon-ob-bull">●</span> Bullish Order Block</div>
+                <div class="legend-item"><span class="icon-ob-bear">●</span> Bearish Order Block</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

@@ -62,5 +62,16 @@ app.get('/api/market-data', async (req, res) => {
 });
 
 app.listen(PORT, () => {
-    console.log(`SMC Dashboard running on http://localhost:${PORT}`);
+    console.log(`SMC Dashboard running on port ${PORT}`);
+    
+    // Ping the server itself every 14 minutes to prevent Render from sleeping
+    const url = process.env.RENDER_EXTERNAL_URL || "https://bes-cripto.onrender.com";
+    setInterval(async () => {
+        try {
+            await axios.get(url);
+            console.log(`Keep-alive ping to ${url} successful`);
+        } catch (error) {
+            console.error(`Keep-alive ping failed:`, error.message);
+        }
+    }, 14 * 60 * 1000); // 14 minutes
 });
