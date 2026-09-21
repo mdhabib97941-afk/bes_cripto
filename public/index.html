@@ -7,7 +7,7 @@
     <style>
         body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #131722; color: #d1d4dc; }
         .header { padding: 15px 20px; background-color: #1e222d; display: flex; align-items: center; gap: 15px; border-bottom: 1px solid #2b313f; flex-wrap: wrap; }
-        .header h1 { margin: 0; font-size: 1.2rem; color: #fff; margin-right: auto; }
+        .header h1 { margin: 0; font-size: 1.2rem; color: #fff; }
         select, button { background-color: #2b313f; color: #d1d4dc; border: 1px solid #363c4e; padding: 8px 12px; border-radius: 4px; outline: none; cursor: pointer; }
         select:hover, button:hover { background-color: #363c4e; }
         button:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -23,12 +23,14 @@
         .spinner { border: 4px solid rgba(255, 255, 255, 0.1); border-left-color: #2962ff; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         #error-msg { color: #ff5252; margin-top: 15px; font-weight: bold; display: none; text-align: center; }
+        #draw-overlay { position: absolute; top: 0; left: 0; pointer-events: none; z-index: 5; }
     </style>
     <script src="https://unpkg.com/lightweight-charts@4.1.1/dist/lightweight-charts.standalone.production.js"></script>
 </head>
 <body>
     <div class="header" id="header">
         <h1>SMC Market Dashboard</h1>
+        <div id="live-price" style="font-size: 1.2rem; font-weight: bold; color: #ffeb3b; margin-right: auto; margin-left: 15px; display: flex; align-items: center;">$0.00</div>
         <select id="symbol">
             <option value="BTCUSDT">BTC/USDT</option>
             <option value="ETHUSDT">ETH/USDT</option>
@@ -41,6 +43,8 @@
             <option value="1h">1H</option>
             <option value="4h">4H</option>
             <option value="1d">1D</option>
+            <option value="1w">1W</option>
+            <option value="1M">1M</option>
         </select>
         <button id="refreshBtn">Refresh Data</button>
     </div>
@@ -51,15 +55,91 @@
             <div id="error-msg"></div>
         </div>
         <div id="chart-container">
+            <canvas id="draw-overlay"></canvas>
             <div class="legend">
-                <div class="legend-item"><span class="icon-fvg-bull">⬆</span> Bullish FVG</div>
-                <div class="legend-item"><span class="icon-fvg-bear">⬇</span> Bearish FVG</div>
-                <div class="legend-item"><span class="icon-ob-bull">●</span> Bullish Order Block</div>
-                <div class="legend-item"><span class="icon-ob-bear">●</span> Bearish Order Block</div>
+                <div class="legend-item"><span style="color: #009688;">■</span> Bullish OB / FVG</div>
+                <div class="legend-item"><span style="color: #ff5252;">■</span> Bearish OB / FVG</div>
+                <div class="legend-item"><span style="color: rgba(100, 110, 120, 0.8);">■</span> Mitigated Zone</div>
+                <div class="legend-item"><span style="color: #00bcd4; font-weight: bold;">--</span> Bullish BOS/CHoCH</div>
+                <div class="legend-item"><span style="color: #ff4081; font-weight: bold;">--</span> Bearish BOS/CHoCH</div>
+                <div class="legend-item"><span style="color: #ffeb3b; font-weight: bold;">--</span> IDM Sweep</div>
             </div>
+        </div>
+        <!-- Live Liquidity Panel -->
+        <div id="liquidity-panel" style="position: absolute; top: 10px; right: 80px; z-index: 10; width: 320px; background: rgba(30, 34, 45, 0.9); padding: 15px; border-radius: 5px; color: #d1d4dc; font-size: 13px; max-height: 90vh; overflow-y: auto; border: 1px solid #2b313f;">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #363c4e; padding-bottom: 10px; margin-bottom: 10px;">
+                <h3 style="margin: 0; color: #fff;">Live Liquidity</h3>
+                <div style="text-align: right;">
+                    <div id="mtfa-trend" style="font-size: 10px; color: #9aa0ac; margin-bottom: 3px;">4H Trend: Loading...</div>
+                    <div id="ai-signal" style="display:none;"></div>
+                    <button id="deploy-spies-btn" style="background: linear-gradient(90deg, #ff9800, #ff5722); color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 11px; cursor: pointer; font-weight: bold; width: 100%;">🕵️‍♂️ Deploy Whale Spies</button>
+                </div>
+            </div>
+            
+            <div id="volume-stats" style="display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 11px;">
+                <span id="demand-val" style="color: #009688;">Demand: <span style="color: #009688;">Demand: $0</span></span>
+                <span id="supply-val" style="color: #ff5252;">Supply: <span style="color: #ff5252;">Supply: $0</span></span>
+            </div>
+            
+            <div id="whale-tracker" style="background: rgba(33, 150, 243, 0.1); border: 1px solid rgba(33, 150, 243, 0.3); color: #2196f3; padding: 6px; text-align: center; border-radius: 4px; font-size: 12px; margin-bottom: 10px; font-weight: bold;">
+                Whale Activity: Loading...
+            </div>
+            
+            <div id="trade-stats" style="background: rgba(0,0,0,0.2); padding: 8px; border-radius: 4px; margin-bottom: 15px; font-size: 11px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                    <span style="color: #00e676;">Total Bought: <span id="bought-coin">0</span></span>
+                    <span style="color: #ff1744;">Total Sold: <span id="sold-coin">0</span></span>
+                </div>
+                <div style="text-align: center; border-top: 1px dashed #363c4e; padding-top: 4px;">
+                    Net Bag: <span id="net-coin" style="font-weight: bold;">0</span>
+                    <div style="margin-top:5px;">Whale Activity: <span id="whale-activity" style="font-weight: bold;">Unknown</span></div>
+                    
+                    <div style="margin-top: 15px; border-top: 1px solid #363c4e; padding-top: 10px;">
+                        <h4 style="margin:0 0 5px 0; color:#c5cbce; font-size:12px;">📊 Sentiment & Open Interest</h4>
+                        <div style="font-size:11px; color:#9aa0ac; display:flex; justify-content:space-between; margin-bottom: 4px;">
+                            <span>Funding Rate (Leverage):</span>
+                            <span id="funding-rate" style="font-weight: bold;">Loading...</span>
+                        </div>
+                        <div style="font-size:11px; color:#9aa0ac; display:flex; justify-content:space-between;">
+                            <span>Open Interest (Contracts):</span>
+                            <span id="open-interest" style="font-weight: bold;">Loading...</span>
+                        </div>
+                    </div>
+                    <div style="margin-top: 15px; border-top: 1px solid #363c4e; padding-top: 10px;">
+                        <h4 style="margin:0 0 5px 0; color:#c5cbce; font-size:12px;">🤖 1000 Local Quant Agents</h4>
+                        <div id="quant-consensus" style="font-size:11px; color:#9aa0ac;">Calculating consensus...</div>
+                    </div>
+                </div>
+            </div>
+
+            <h4 style="color: #ff5252; margin-bottom: 5px; margin-top: 0;">Supply (Bearish OBs)</h4>
+            <div id="bearish-obs">Loading...</div>
+
+            <h4 style="color: #009688; margin-top: 15px; margin-bottom: 5px;">Demand (Bullish OBs)</h4>
+            <div id="bullish-obs">Loading...</div>
+
+            <h4 style="color: #ff9800; margin-top: 15px; margin-bottom: 5px;">Recent Spoofs (Manipulation)</h4>
+            <div id="spoof-stats" style="margin-bottom: 10px; font-size: 11px; display: flex; justify-content: space-between;">
+                <span id="buy-spoof-pct" style="color: #009688;">Buy Spoof: 0%</span>
+                <span id="sell-spoof-pct" style="color: #ff5252;">Sell Spoof: 0%</span>
+            </div>
+            <div style="width: 100%; height: 6px; background: #363c4e; border-radius: 3px; margin-bottom: 10px; display: flex; overflow: hidden;">
+                <div id="buy-spoof-bar" style="height: 100%; background: #009688; width: 0%;"></div>
+                <div id="sell-spoof-bar" style="height: 100%; background: #ff5252; width: 0%;"></div>
+            </div>
+            <div id="spoofed-obs">None detected yet</div>
         </div>
     </div>
 
     <script src="app.js"></script>
-</body>
-</html>
+
+<div id="mastermind-modal" style="display: none; position: fixed; top: 10%; left: 10%; width: 80%; max-height: 80%; background: #1a1e29; border: 1px solid #363c4e; z-index: 1000; color: #d1d4dc; padding: 20px; overflow-y: auto; box-shadow: 0 0 20px rgba(0,0,0,0.8);">
+    <h2 style="color: #ff9800; border-bottom: 1px solid #363c4e; padding-bottom: 10px; margin-top: 0;">🕵️‍♂️ The Mastermind Verdict (10 Agent Synthesis)</h2>
+    <div id="mastermind-content" style="font-size: 14px; line-height: 1.6; white-space: pre-wrap; margin-bottom: 20px;">Deploying 10 Whale Spies... Please wait...</div>
+    
+    <h3 style="color: #9aa0ac;">Individual Spy Reports:</h3>
+    <div id="spy-reports" style="font-size: 12px; background: #000; padding: 10px; border-radius: 4px;"></div>
+
+    <button onclick="document.getElementById('mastermind-modal').style.display='none'" style="margin-top: 20px; background: #ff5252; color: white; border: none; padding: 8px 16px; cursor: pointer; border-radius: 4px; font-weight: bold;">Close Report</button>
+</div>
+</body></html>
