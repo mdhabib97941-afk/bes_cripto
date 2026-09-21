@@ -136,7 +136,7 @@ app.get('/api/roadmap', async (req, res) => {
                     params: { symbol: symbol, interval: intervals[i], limit: 300 },
                     timeout: 5000
                 });
-                responses.push({ status: 'fulfilled', value: res });
+                responses.push({ status: 'fulfilled', value: res.data });
             } catch(e) {
                 responses.push({ status: 'rejected', reason: e });
             }

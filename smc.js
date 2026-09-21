@@ -193,11 +193,11 @@ function analyzeSMC(klines) {
         for(let k = ob.index + 2; k < data.length; k++) {
             let c = data[k];
             if (ob.type === 'bullish_ob') {
-                if (c.low <= ob.top) { ob.mitigatedTime = c.time; }
+                if (!ob.mitigatedTime && c.low <= ob.top) { ob.mitigatedTime = c.time; }
                 if (ob.mitigatedTime && (c.low < ob.bottom || c.high >= tpBull)) { ob.isDead = true; break; } // Hit SL or TP
             }
             if (ob.type === 'bearish_ob') {
-                if (c.high >= ob.bottom) { ob.mitigatedTime = c.time; }
+                if (!ob.mitigatedTime && c.high >= ob.bottom) { ob.mitigatedTime = c.time; }
                 if (ob.mitigatedTime && (c.high > ob.top || c.low <= tpBear)) { ob.isDead = true; break; } // Hit SL or TP
             }
         }

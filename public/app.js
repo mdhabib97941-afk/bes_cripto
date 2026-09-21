@@ -8,31 +8,6 @@ let chart, candleSeries;
 let smcData = null;
 
 
-// Generate MTFA Roadmap
-async function generateRoadmap() {
-    const symbol = document.getElementById('symbol').value.toUpperCase();
-    const btn = document.querySelector('button[onclick="generateRoadmap()"]');
-    const box = document.getElementById('roadmap-box');
-    
-    btn.innerText = "⏳ Scanning 5 Timeframes...";
-    btn.style.opacity = "0.7";
-    box.style.display = "block";
-    box.innerText = "Mastermind AI is calculating Macro Bias and 5m Entry... Please wait (10-15s).";
-    
-    try {
-        const res = await fetch(`/api/roadmap?symbol=${symbol}`);
-        if (!res.ok) throw new Error("Failed to fetch roadmap");
-        const data = await res.json();
-        
-        box.innerText = data.roadmap;
-    } catch (err) {
-        box.innerText = "Error: " + err.message;
-    } finally {
-        btn.innerText = "🔥 Generate 5m MTFA Roadmap";
-        btn.style.opacity = "1";
-    }
-}
-
 // Initialize Lightweight Charts
 function initChart() {
     chart = LightweightCharts.createChart(chartContainer, {
@@ -195,14 +170,13 @@ function drawOverlay() {
 }
 // Fetch SMC Data from Backend
 
-let autoRefreshInterval = null;
+let autoRefreshTimeout = null;
 
 async function loadData(silent = false) {
     const symbol = document.getElementById('symbol').value;
     const interval = document.getElementById('interval').value;
     
-    if (autoRefreshInterval) clearInterval(autoRefreshInterval);
-    autoRefreshInterval = setInterval(() => loadData(true), 3000); // Auto-refresh every 3 seconds
+    if (autoRefreshTimeout) clearTimeout(autoRefreshTimeout);
     
     if (!silent) {
         loadingOverlay.style.display = 'flex';
@@ -225,7 +199,7 @@ async function loadData(silent = false) {
         candleSeries.setData(formattedCandles);
         drawOverlay();
 
-        document.getElementById('live-price').innerText = `${formattedCandles[formattedCandles.length-1].close.toFixed(2)}`;
+        if (formattedCandles.length > 0) document.getElementById('live-price').innerText = `${formattedCandles[formattedCandles.length-1].close.toFixed(2)}`;
         
         const bullishObsDiv = document.getElementById('bullish-obs');
         const bearishObsDiv = document.getElementById('bearish-obs');
@@ -271,6 +245,7 @@ async function loadData(silent = false) {
         }
     } finally {
         if (!silent) loadingOverlay.style.display = 'none';
+        autoRefreshTimeout = setTimeout(() => loadData(true), 3000);
     }
 }
 // Init
@@ -378,7 +353,7 @@ const triggerAutoAI = async (symbol, smcData, liquidityData) => {
         clearTimeout(timeoutId);
         const data = await res.json();
         
-        let verdict = data.mastermind;
+        let verdict = data.mastermind || 'Unknown';
         let color = verdict.includes('WARNING') || verdict.includes('FAKE') || verdict.includes('WAIT') ? '#ff5252' : '#00e676';
 
         alertBox.style.borderColor = color;
@@ -396,3 +371,82 @@ const triggerAutoAI = async (symbol, smcData, liquidityData) => {
         setTimeout(() => { alertBox.style.display = 'none'; window.aiAlertTriggered = false; }, 5000);
     }
 };
+
+async function loadLiquidity(symbol, smcData) {
+    try {
+        const res = await fetch(`/api/liquidity?symbol=${symbol}&limit=1000`);
+        if (!res.ok) throw new Error("Failed to fetch liquidity data");
+        const data = await res.json();
+        
+        // Update the DOM elements
+        const demandEl = document.getElementById('demand-val');
+        if (demandEl) demandEl.innerHTML = `<span style="color: #009688;">Demand: $${parseFloat(data.demandVolume).toLocaleString()}</span>`;
+        
+        const supplyEl = document.getElementById('supply-val');
+        if (supplyEl) supplyEl.innerHTML = `<span style="color: #ff5252;">Supply: $${parseFloat(data.supplyVolume).toLocaleString()}</span>`;
+        
+        const boughtEl = document.getElementById('bought-coin');
+        if (boughtEl) boughtEl.innerText = data.boughtCoin;
+        
+        const soldEl = document.getElementById('sold-coin');
+        if (soldEl) soldEl.innerText = data.soldCoin;
+        
+        const netEl = document.getElementById('net-coin');
+        if (netEl) {
+            netEl.innerText = data.netCoin;
+            netEl.style.color = parseFloat(data.netCoin) > 0 ? '#00e676' : '#ff1744';
+        }
+        
+        const activityEl = document.getElementById('whale-activity');
+        if (activityEl) {
+            activityEl.innerText = data.whaleActivity;
+            if (data.whaleActivity.includes('BUYING')) activityEl.style.color = '#00e676';
+            else if (data.whaleActivity.includes('SELLING')) activityEl.style.color = '#ff1744';
+            else activityEl.style.color = '#9aa0ac';
+        }
+
+        const trackerEl = document.getElementById('whale-tracker');
+        if (trackerEl) {
+            trackerEl.innerText = `Whale Activity: ${data.whaleActivity}`;
+            if (data.whaleActivity.includes('BUYING')) {
+                trackerEl.style.color = '#00e676';
+                trackerEl.style.borderColor = 'rgba(0, 230, 118, 0.3)';
+                trackerEl.style.background = 'rgba(0, 230, 118, 0.1)';
+            } else if (data.whaleActivity.includes('SELLING')) {
+                trackerEl.style.color = '#ff1744';
+                trackerEl.style.borderColor = 'rgba(255, 23, 68, 0.3)';
+                trackerEl.style.background = 'rgba(255, 23, 68, 0.1)';
+            } else {
+                trackerEl.style.color = '#2196f3';
+                trackerEl.style.borderColor = 'rgba(33, 150, 243, 0.3)';
+                trackerEl.style.background = 'rgba(33, 150, 243, 0.1)';
+            }
+        }
+        
+        const fundingEl = document.getElementById('funding-rate');
+        if (fundingEl) {
+            const fRate = (parseFloat(data.fundingRate) * 100).toFixed(4);
+            fundingEl.innerText = `${fRate}%`;
+            fundingEl.style.color = parseFloat(fRate) > 0 ? '#ff1744' : '#00e676'; // High funding = bearish (longs paying shorts)
+        }
+        
+        const oiEl = document.getElementById('open-interest');
+        if (oiEl) oiEl.innerText = parseFloat(data.openInterest).toLocaleString();
+
+        // Optional: trigger AI alert if a setup is near and we have high confidence.
+        // We will leave the AI logic alone since the user removed the pending setup box, but 
+        // the triggerAutoAI depends on this running.
+        if (typeof triggerAutoAI === 'function' && smcData && smcData.tradeSetups && smcData.tradeSetups.length > 0) {
+            const setup = smcData.tradeSetups[0];
+            const currentPrice = parseFloat(document.getElementById('live-price')?.innerText || 0);
+            const distance = Math.abs(currentPrice - setup.entry) / currentPrice;
+            if (distance < 0.002 && !window.aiAlertTriggered) {
+                window.aiAlertTriggered = true;
+                triggerAutoAI(symbol, smcData, data);
+            }
+        }
+
+    } catch (err) {
+        console.error("Error loading liquidity:", err);
+    }
+}
