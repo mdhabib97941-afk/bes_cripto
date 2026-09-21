@@ -20,7 +20,7 @@ app.get('/', (req, res) => {
 const VALID_INTERVALS = ['5m', '15m', '1h', '4h', '1d', '1w', '1M'];
 
 app.get('/api/market-data', async (req, res) => {
-    const symbol = (req.query.symbol || 'BTCUSDT').toUpperCase();
+    const symbol = (req.query.symbol || 'BTCUSDT').toUpperCase().replace(/[^A-Z0-9]/g, '');
     const interval = req.query.interval || '15m';
     const limit = parseInt(req.query.limit) || 1000;
 

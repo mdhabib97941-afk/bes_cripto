@@ -380,10 +380,10 @@ async function loadLiquidity(symbol, smcData) {
         
         // Update the DOM elements
         const demandEl = document.getElementById('demand-val');
-        if (demandEl) demandEl.innerHTML = `<span style="color: #009688;">Demand: $${parseFloat(data.demandVolume).toLocaleString()}</span>`;
+        if (demandEl) demandEl.innerHTML = `<span style="color: #009688;">${parseFloat(data.demandVolume).toLocaleString()} Coins</span>`;
         
         const supplyEl = document.getElementById('supply-val');
-        if (supplyEl) supplyEl.innerHTML = `<span style="color: #ff5252;">Supply: $${parseFloat(data.supplyVolume).toLocaleString()}</span>`;
+        if (supplyEl) supplyEl.innerHTML = `<span style="color: #ff5252;">${parseFloat(data.supplyVolume).toLocaleString()} Coins</span>`;
         
         const boughtEl = document.getElementById('bought-coin');
         if (boughtEl) boughtEl.innerText = data.boughtCoin;
