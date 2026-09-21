@@ -194,19 +194,26 @@ function drawOverlay() {
     // 5. Pending Trade Setup Box logic removed per user request
 }
 // Fetch SMC Data from Backend
-async function loadData() {
+
+let autoRefreshInterval = null;
+
+async function loadData(silent = false) {
     const symbol = document.getElementById('symbol').value;
     const interval = document.getElementById('interval').value;
     
-    loadingOverlay.style.display = 'flex';
-    errorMsg.style.display = 'none';
+    if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+    autoRefreshInterval = setInterval(() => loadData(true), 3000); // Auto-refresh every 3 seconds
+    
+    if (!silent) {
+        loadingOverlay.style.display = 'flex';
+        errorMsg.style.display = 'none';
+    }
 
     try {
         const res = await fetch(`/api/market-data?symbol=${symbol}&interval=${interval}&limit=500`);
         if (!res.ok) throw new Error("Backend API Error");
         smcData = await res.json();
         
-        // 1. Format candles for Lightweight Charts
         const formattedCandles = smcData.candles.map(c => ({
             time: c.time,
             open: c.open,
@@ -218,7 +225,6 @@ async function loadData() {
         candleSeries.setData(formattedCandles);
         drawOverlay();
 
-        // 2. Update Dashboard Stats Sidebar
         document.getElementById('live-price').innerText = `${formattedCandles[formattedCandles.length-1].close.toFixed(2)}`;
         
         const bullishObsDiv = document.getElementById('bullish-obs');
@@ -255,218 +261,25 @@ async function loadData() {
             ).join('') : '<div style="color: gray; font-style: italic;">No unmitigated Demand</div>';
         }
         
-        // 3. Update Current Trend
-        if (document.getElementById('mtfa-trend')) {
-            document.getElementById('mtfa-trend').innerText = `Current Trend: ${smcData.swings.length > 0 ? (smcData.swings[smcData.swings.length-1].type.includes('H') ? 'BULLISH' : 'BEARISH') : 'NEUTRAL'}`;
-        }
-
-        // Fetch Manipulation and Liquidity Data
-        loadLiquidity(symbol, smcData);
-
-    } catch (err) {
-        errorMsg.innerText = "Error loading data: " + err.message;
-        errorMsg.style.display = 'block';
-    } finally {
-        loadingOverlay.style.display = 'none';
-    }
-}
-
-
-// Fetch SMC Data from Backend
-async function loadData() {
-    const symbol = document.getElementById('symbol').value;
-    const interval = document.getElementById('interval').value;
-    
-    loadingOverlay.style.display = 'flex';
-    errorMsg.style.display = 'none';
-
-    try {
-        const res = await fetch(`/api/market-data?symbol=${symbol}&interval=${interval}&limit=500`);
-        if (!res.ok) throw new Error("Backend API Error");
-        smcData = await res.json();
-        
-        // 1. Format candles for Lightweight Charts
-        const formattedCandles = smcData.candles.map(c => ({
-            time: c.time,
-            open: c.open,
-            high: c.high,
-            low: c.low,
-            close: c.close
-        }));
-        
-        candleSeries.setData(formattedCandles);
-        drawOverlay();
-
-        // 2. Update Dashboard Stats Sidebar
-        document.getElementById('live-price').innerText = `${formattedCandles[formattedCandles.length-1].close.toFixed(2)}`;
-        
-        const bullishObsDiv = document.getElementById('bullish-obs');
-        const bearishObsDiv = document.getElementById('bearish-obs');
-        
-        if (bullishObsDiv && bearishObsDiv) {
-            const unmitigatedBullish = smcData.orderBlocks.filter(ob => ob.type === 'bullish_ob' && !ob.isDead).slice(-3);
-            
-            
-            const q = smcData.quantConsensus;
-            if (q) {
-                const qElem = document.getElementById('quant-consensus');
-                if (qElem) {
-                    let color = '#9aa0ac';
-                    if (q.verdict === 'LONG') color = '#00e676';
-                    if (q.verdict === 'SHORT') color = '#ff5252';
-                    qElem.innerHTML = `<span style="color:${color}; font-weight:bold;">${q.confidencePct}% ${q.verdict}</span> <br>
-                    <span style="font-size:9px; color:#555;">(L: ${q.long} | S: ${q.short} | N: ${q.neutral})</span>`;
-                }
-            }
-
-const unmitigatedBearish = smcData.orderBlocks.filter(ob => ob.type === 'bearish_ob' && !ob.isDead).slice(-3);
-            
-            bearishObsDiv.innerHTML = unmitigatedBearish.length ? unmitigatedBearish.map(ob => 
-                `<div style="display:flex; justify-content:space-between; margin-bottom:4px; padding:4px; background:rgba(255, 82, 82, 0.1); border-left:3px solid #ff5252;">
-                    <span>${new Date(ob.time * 1000).toLocaleTimeString()}</span>
-                    <span>${ob.bottom.toFixed(2)} - ${ob.top.toFixed(2)} ${ob.mitigatedTime ? '(ACTIVE)' : ''}</span>
-                </div>`
-            ).join('') : '<div style="color: gray; font-style: italic;">No unmitigated Supply</div>';
-
-            bullishObsDiv.innerHTML = unmitigatedBullish.length ? unmitigatedBullish.map(ob => 
-                `<div style="display:flex; justify-content:space-between; margin-bottom:4px; padding:4px; background:rgba(0, 150, 136, 0.1); border-left:3px solid #009688;">
-                    <span>${new Date(ob.time * 1000).toLocaleTimeString()}</span>
-                    <span>${ob.bottom.toFixed(2)} - ${ob.top.toFixed(2)} ${ob.mitigatedTime ? '(ACTIVE)' : ''}</span>
-                </div>`
-            ).join('') : '<div style="color: gray; font-style: italic;">No unmitigated Demand</div>';
-        }
-        
-        // 3. Clear mock loading states on the side panel
         if (document.getElementById('mtfa-trend')) document.getElementById('mtfa-trend').innerText = `Current Trend: ${smcData.swings.length > 0 ? (smcData.swings[smcData.swings.length-1].type.includes('H') ? 'BULLISH' : 'BEARISH') : 'NEUTRAL'}`;
         
-        // Fetch Manipulation and Liquidity Data
         loadLiquidity(symbol, smcData);
-
     } catch (err) {
-        errorMsg.innerText = "Error loading data: " + err.message;
-        errorMsg.style.display = 'block';
+        if (!silent) {
+            errorMsg.innerText = "Error loading data: " + err.message;
+            errorMsg.style.display = 'block';
+        }
     } finally {
-        loadingOverlay.style.display = 'none';
+        if (!silent) loadingOverlay.style.display = 'none';
     }
 }
-
-
-
-// Fetch Liquidity Data (Manipulation & Spoofing)
-async function loadLiquidity(symbol, localSmcData) {
-    try {
-        const res = await fetch(`/api/liquidity?symbol=${symbol}&limit=500`);
-        if (!res.ok) throw new Error("Liquidity API Error");
-        const data = await res.json();
-        
-        const buySpoofPct = parseFloat(data.buySpoofPct);
-        const sellSpoofPct = parseFloat(data.sellSpoofPct);
-
-        document.getElementById('buy-spoof-pct').innerText = `Buy Spoof: ${buySpoofPct}%`;
-        document.getElementById('sell-spoof-pct').innerText = `Sell Spoof: ${sellSpoofPct}%`;
-        document.getElementById('buy-spoof-bar').style.width = buySpoofPct + '%';
-        document.getElementById('sell-spoof-bar').style.width = sellSpoofPct + '%';
-
-        document.getElementById('bought-coin').innerText = data.boughtCoin;
-        document.getElementById('sold-coin').innerText = data.soldCoin;
-        
-        const netCoinElem = document.getElementById('net-coin');
-        netCoinElem.innerText = data.netCoin;
-        netCoinElem.style.color = data.netCoin > 0 ? '#00e676' : '#ff5252';
-
-        let wa = document.getElementById('whale-activity'); 
-        if(wa) wa.innerText = data.whaleActivity;
-        if(wa) wa.style.color = data.whaleActivity.includes('Accumulating') ? '#00e676' : '#ff5252';
-        
-        let wt = document.getElementById('whale-tracker');
-        if(wt) wt.innerText = 'Whale Activity: ' + data.whaleActivity;
-        
-        let dv = document.getElementById('demand-val');
-        if(dv) dv.innerText = 'Demand: $' + (data.boughtCoin * 60000).toLocaleString('en-US', {maximumFractionDigits:0});
-        
-        let sv = document.getElementById('supply-val');
-        if(sv) sv.innerText = 'Supply: $' + (data.soldCoin * 60000).toLocaleString('en-US', {maximumFractionDigits:0});
-
-        // Display Funding Rate
-        let frElem = document.getElementById('funding-rate');
-        if (frElem && data.fundingRate) {
-            let frPct = (parseFloat(data.fundingRate) * 100).toFixed(4);
-            frElem.innerText = frPct + '%';
-            if (frPct > 0.01) frElem.style.color = '#ff5252'; // High positive funding = Dump risk
-            else if (frPct < -0.01) frElem.style.color = '#00e676'; // High negative funding = Pump risk
-            else frElem.style.color = '#9aa0ac';
-        }
-
-        // Display Open Interest
-        let oiElem = document.getElementById('open-interest');
-        if (oiElem && data.openInterest) {
-            let oiFmt = parseFloat(data.openInterest).toLocaleString();
-            oiElem.innerText = oiFmt;
-        }
-
-        // -------------------------------------------------------------
-        // DYNAMIC SETUP WARNING (Cross-Reference SMC with Whales)
-        // -------------------------------------------------------------
-        const aiSignal = document.getElementById('ai-signal');
-        if (localSmcData && localSmcData.tradeSetups && localSmcData.tradeSetups.length > 0 && aiSignal) {
-            let smcData = localSmcData; // Maintain variable name inside block for safety
-            let setup = smcData.tradeSetups[0];
-            
-            // Format the Entry, SL, TP string so it is always visible
-            let levelsText = `Entry: $${setup.entry.toFixed(2)} | SL: $${setup.sl.toFixed(2)} | TP: $${setup.tp.toFixed(2)}`;
-            
-            // PENDING SETUP UI REMOVED AS REQUESTED
-
-            // 2. CHECK DISTANCE FOR AUTO TRIGGER
-            let currentPriceStr = (document.getElementById('live-price')?.innerText || '').replace('$', '');
-            let currentPriceVal = parseFloat(currentPriceStr);
-            let distance = Math.abs(currentPriceVal - setup.entry) / currentPriceVal;
-            
-            let alertLock = window.aiAlertTriggered || {};
-            if ((alertLock.symbol !== symbol || (Date.now() - alertLock.time) > 15 * 60 * 1000) && (setup.status === 'ACTIVE' || distance < 0.002)) {
-                window.aiAlertTriggered = { symbol: symbol, time: Date.now() };
-                triggerAutoAI(symbol, smcData, data);
-            }
-
-            // 3. APPLY WARNINGS IF ACTIVE (Keeping Entry, SL, TP visible)
-            if (setup.status === 'ACTIVE') {
-                let isWarning = false;
-                let warningText = '';
-
-                if (setup.direction === 'SHORT' && (buySpoofPct > 55 || data.whaleActivity.includes('Accumulating'))) {
-                    isWarning = true;
-                    warningText = '⚠️ RISKY SHORT (Whales Buying)';
-                } else if (setup.direction === 'LONG' && (sellSpoofPct > 55 || data.whaleActivity.includes('Distributing'))) {
-                    isWarning = true;
-                    warningText = '⚠️ RISKY LONG (Whales Selling)';
-                }
-
-                if (isWarning) {
-                    aiSignal.innerHTML = `${warningText}<br><span style="font-size:11px; font-weight:normal; color:#fff;">${levelsText}</span>`;
-                    aiSignal.style.background = 'rgba(255, 152, 0, 0.2)';
-                    aiSignal.style.color = '#ff9800';
-                    aiSignal.style.border = '1px solid #ff9800';
-                } else {
-                    aiSignal.innerHTML = `🔥 PERFECT ${setup.direction} (Whales Aligned)<br><span style="font-size:11px; font-weight:normal; color:#fff;">${levelsText}</span>`;
-                    aiSignal.style.background = 'rgba(0, 230, 118, 0.2)';
-                    aiSignal.style.color = '#00e676';
-                    aiSignal.style.border = '1px solid #00e676';
-                }
-            }
-        }
-
-    } catch (err) {
-        console.error(err);
-    }
-}
-
 // Init
 initChart();
-document.getElementById('refreshBtn').addEventListener('click', loadData);
-document.getElementById('symbol').addEventListener('change', loadData);
-document.getElementById('interval').addEventListener('change', loadData);
+document.getElementById('refreshBtn').addEventListener('click', () => loadData(false));
+document.getElementById('symbol').addEventListener('change', () => loadData(false));
+document.getElementById('interval').addEventListener('change', () => loadData(false));
 // Load default
-loadData();
+loadData(false);
 
 // -------------------------------------------------------------
 // Deploy 10 Whale Spies
