@@ -235,7 +235,7 @@ async function loadData(silent = false) {
             ).join('') : '<div style="color: gray; font-style: italic;">No unmitigated Demand</div>';
         }
         
-        if (document.getElementById('mtfa-trend')) document.getElementById('mtfa-trend').innerText = `Current Trend: ${smcData.swings.length > 0 ? (smcData.swings[smcData.swings.length-1].type.includes('H') ? 'BULLISH' : 'BEARISH') : 'NEUTRAL'}`;
+        
         
         loadLiquidity(symbol, smcData);
     } catch (err) {
@@ -432,6 +432,9 @@ async function loadLiquidity(symbol, smcData) {
         
         const oiEl = document.getElementById('open-interest');
         if (oiEl) oiEl.innerText = parseFloat(data.openInterest).toLocaleString();
+
+        const mtfaEl = document.getElementById('mtfa-trend');
+        if (mtfaEl && data.mtfaTrend) mtfaEl.innerHTML = `<span style="font-weight:bold;color:#ff9800;">${data.mtfaTrend}</span>`;
 
         // Optional: trigger AI alert if a setup is near and we have high confidence.
         // We will leave the AI logic alone since the user removed the pending setup box, but 

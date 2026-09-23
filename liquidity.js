@@ -1,3 +1,4 @@
+const { analyzeICT_MTFA } = require('./ict_agents');
 function analyzeLiquidity(depthData, symbol, tradesData, klinesData) {
     let totalBids = 0;
     let totalAsks = 0;
@@ -50,13 +51,11 @@ function analyzeLiquidity(depthData, symbol, tradesData, klinesData) {
     if (largeBuys > largeSells * 1.5) whaleActivity = "Whale Accumulating 🐋🟢";
     else if (largeSells > largeBuys * 1.5) whaleActivity = "Whale Distributing 🐋🔴";
     
-    // Multi-Timeframe Analysis (4H Trend)
-    let mtfaTrend = "NEUTRAL";
-    if (klinesData && klinesData.length >= 2) {
-        let current4h = klinesData[klinesData.length - 1];
-        let prev4h = klinesData[klinesData.length - 2];
-        if (parseFloat(current4h[4]) > parseFloat(prev4h[4])) mtfaTrend = "BULLISH 🟢";
-        else mtfaTrend = "BEARISH 🔴";
+        // Multi-Timeframe Analysis (4H Trend) powered by 100 ICT Agents
+    let mtfaTrend = "NEUTRAL ⚖️";
+    if (klinesData && klinesData.length >= 20) {
+        const ictAnalysis = analyzeICT_MTFA(klinesData);
+        mtfaTrend = ictAnalysis.trend; // e.g., "ICT: STRONG BULLISH 🟢"
     }
 
     return {
